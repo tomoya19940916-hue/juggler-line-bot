@@ -27,12 +27,27 @@ async function handleEvent(event) {
 
   const lines = event.message.text.trim().split("\n");
 
+  // 2行未満は無視
+  if (lines.length < 2) {
+    return null;
+  }
+
+  // 「数字.数字.数字」の形式だけを抽出
+  const validLines = lines.filter(line =>
+    /^\d+\.\d+\.\d+$/.test(line.trim())
+  );
+
+  // 有効なデータが2行未満なら無視
+  if (validLines.length < 2) {
+    return null;
+  }
+
   let totalGame = 0;
   let totalBB = 0;
   let totalRB = 0;
   let count = 0;
 
-  for (const lineText of lines) {
+  for (const lineText of validLines) {
     const parts = lineText.split(".");
 
     if (parts.length !== 3) continue;
@@ -50,10 +65,7 @@ async function handleEvent(event) {
   }
 
   if (count === 0) {
-    return lineClient.replyMessage(event.replyToken, {
-      type: "text",
-      text: "入力形式：回転数.BB.RB\n例\n1000.5.5",
-    });
+    return null;
   }
 
   const bbRate = totalBB ? (totalGame / totalBB).toFixed(1) : "-";
