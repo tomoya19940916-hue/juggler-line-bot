@@ -7,12 +7,12 @@ const config = {
   channelSecret: process.env.CHANNEL_SECRET,
 };
 
+const lineClient = new line.Client(config);
 const app = express();
 
 app.post("/webhook", line.middleware(config), async (req, res) => {
   try {
-    const events = req.body.events;
-    await Promise.all(events.map(handleEvent));
+    await Promise.all(req.body.events.map(handleEvent));
     res.status(200).end();
   } catch (err) {
     console.error(err);
@@ -25,20 +25,14 @@ async function handleEvent(event) {
     return null;
   }
 
-  const lines = event.message.text.trim().split("\n");
+  const lines = event.message.text
+    .trim()
+    .split(/\r?\n/)
+    .map(v => v.trim())
+    .filter(v => v !== "");
 
-  // 2行未満は無視
+  // 2行未満なら反応しない
   if (lines.length < 2) {
-    return null;
-  }
-
-  // 「数字.数字.数字」の形式だけを抽出
-  const validLines = lines.filter(line =>
-    /^\d+\.\d+\.\d+$/.test(line.trim())
-  );
-
-  // 有効なデータが2行未満なら無視
-  if (validLines.length < 2) {
     return null;
   }
 
@@ -47,41 +41,82 @@ async function handleEvent(event) {
   let totalRB = 0;
   let count = 0;
 
-  for (const lineText of validLines) {
-    const parts = lineText.split(".");
+  let dotMode = false;
+  let dashMode = false;
 
-    if (parts.length !== 3) continue;
+  for (const line of lines) {
+    if (/^\d+\.\d+\.\d+$/.test(line)) {
+      dotMode = true;
+    }
 
-    const game = Number(parts[0]);
-    const bb = Number(parts[1]);
-    const rb = Number(parts[2]);
-
-    if (isNaN(game) || isNaN(bb) || isNaN(rb)) continue;
-
-    totalGame += game;
-    totalBB += bb;
-    totalRB += rb;
-    count++;
+    if (/^\d+\-\d+\-\d+$/.test(line)) {
+      dashMode = true;
+    }
   }
 
-  if (count === 0) {
+  // 「.」と「-」が混ざっていたら反応しない
+  if (dotMode && dashMode) {
     return null;
   }
 
-  const bbRate = totalBB ? (totalGame / totalBB).toFixed(1) : "-";
-  const rbRate = totalRB ? (totalGame / totalRB).toFixed(1) : "-";
-  const totalRate =
-    totalBB + totalRB
-      ? (totalGame / (totalBB + totalRB)).toFixed(1)
-      : "-";
+  // ---------- 総回転モード ----------
+  if (dotMode) {
+
+    for (const line of lines) {
+
+      if (!/^\d+\.\d+\.\d+$/.test(line)) {
+        continue;
+      }
+
+      const [game, bb, rb] = line.split(".").map(Number);
+
+      totalGame += game;
+      totalBB += bb;
+      totalRB += rb;
+      count++;
+    }
+
+  }
+
+  // ---------- 合算モード ----------
+  else if (dashMode) {
+
+    for (const line of lines) {
+
+      if (!/^\d+\-\d+\-\d+$/.test(line)) {
+        continue;
+      }
+
+      const [rate, bb, rb] = line.split("-").map(Number);
+
+      totalGame += rate * (bb + rb);
+      totalBB += bb;
+      totalRB += rb;
+      count++;
+    }
+
+  } else {
+    return null;
+  }
+
+  if (count < 2) {
+    return null;
+  }  const bbRate = totalBB > 0
+    ? (totalGame / totalBB).toFixed(1)
+    : "-";
+
+  const rbRate = totalRB > 0
+    ? (totalGame / totalRB).toFixed(1)
+    : "-";
+
+  const totalRate = (totalBB + totalRB) > 0
+    ? (totalGame / (totalBB + totalRB)).toFixed(1)
+    : "-";
 
   const message =
 `【${count}台合算】
-
-総回転数：${totalGame}G
-BB：${totalBB}
-RB：${totalRB}
-
+総回転：${totalGame}G
+BB：${totalBB}　RB：${totalRB}
 BB確率：1/${bbRate}
 RB確率：1/${rbRate}
 合算：1/${totalRate}`;
@@ -91,8 +126,6 @@ RB確率：1/${rbRate}
     text: message,
   });
 }
-
-const lineClient = new line.Client(config);
 
 const PORT = process.env.PORT || 3000;
 
