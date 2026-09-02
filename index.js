@@ -53,7 +53,7 @@ async function handleEvent(event) {
       dot3Mode = true;
     }
 
-    // 子役
+    // 小役
     if (/^\d+\.\d+$/.test(line)) {
       dot2Mode = true;
     }
@@ -76,9 +76,6 @@ async function handleEvent(event) {
 
   // ========================================
   // 総回転・BB・RBモード
-  // 例：
-  // 1000.5.5
-  // 1000.5.5
   // ========================================
   if (dot3Mode) {
 
@@ -95,11 +92,10 @@ async function handleEvent(event) {
       totalRB += rb;
       count++;
     }
-
   }
 
   // ========================================
-  // 子役モード
+  // 小役モード
   // 例：
   // 1000.5
   // 1000.5
@@ -129,9 +125,8 @@ async function handleEvent(event) {
 
     const message =
 `【${count}台合算】
-総回転：${totalGame}G
-子役：${totalKoyaku}
-子役確率：1/${koyakuRate}`;
+総合計${totalGame}.${totalKoyaku}
+小役確率：1/${koyakuRate}`;
 
     return lineClient.replyMessage(event.replyToken, {
       type: "text",
@@ -141,10 +136,6 @@ async function handleEvent(event) {
 
   // ========================================
   // 合算-BB-RBモード
-  // 例：
-  // 100-1-1
-  // 100-1-1
-  // 150-0-0
   // ========================================
   else if (dashMode) {
 
@@ -157,13 +148,12 @@ async function handleEvent(event) {
       const [rate, bb, rb] = line.split("-").map(Number);
 
       // BB・RBがある場合
-      // 合算 × (BB + RB) で総回転を計算
       if (bb + rb > 0) {
         totalGame += rate * (bb + rb);
       }
 
       // BB・RBが0の場合
-      // 合算の数字をそのまま総回転として加算
+      // 最初の数字をそのまま総回転として加算
       else {
         totalGame += rate;
       }
